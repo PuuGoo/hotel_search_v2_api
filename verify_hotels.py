@@ -984,12 +984,21 @@ def append_case12_chain_vho_note(df, input_cols, match_reasons):
         if chain_branch_note:
             row_notes.append(chain_branch_note)
 
-        master_has_unit = any(text_contains_phrase(master_name, kw) for kw in unit_keywords)
-        child_has_unit = any(text_contains_phrase(child_name, kw) for kw in unit_keywords)
+        matched_unit_master = [kw for kw in unit_keywords if text_contains_phrase(master_name, kw)]
+        matched_unit_child = [kw for kw in unit_keywords if text_contains_phrase(child_name, kw)]
+        master_has_unit = bool(matched_unit_master)
+        child_has_unit = bool(matched_unit_child)
+
         if master_has_unit and not child_has_unit:
-            row_notes.append("Subunit")
+            row_notes.append(f"Subunit: keyword={matched_unit_master[0]}; side=master")
+        elif master_has_unit and child_has_unit:
+            row_notes.append(
+                f"Unit: keyword_master={matched_unit_master[0]}; keyword_child={matched_unit_child[0]}; side=master+child"
+            )
+        elif child_has_unit and not master_has_unit:
+            row_notes.append(f"Unit: keyword={matched_unit_child[0]}; side=child")
         else:
-            row_notes.append("Unit")
+            row_notes.append("Unit: keyword=none; side=none")
 
         case12_chain_branch_vho_notes.append(" | ".join(row_notes))
 
