@@ -58,7 +58,6 @@ GENERIC_NAME_WORDS = {
     "apartment",
 }
 
-
 def normalize_text(value: str) -> str:
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return ""
@@ -244,6 +243,27 @@ def text_contains_phrase(text: str, phrase: str) -> bool:
     if not text or not phrase:
         return False
 
+    if f" {phrase} " in f" {text} ":
+        return True
+
+    phrase_tokens = [t for t in phrase.split() if t]
+    compact_text = re.sub(r"[^a-z0-9]", "", text)
+    compact_phrase = re.sub(r"[^a-z0-9]", "", phrase)
+    if (
+        len(compact_phrase) >= 6
+        and compact_phrase in compact_text
+        and phrase_tokens
+        and min(len(t) for t in phrase_tokens) >= 2
+    ):
+        return True
+
+    if len(phrase_tokens) >= 2:
+        text_tokens = set(text.split())
+        if all(token in text_tokens for token in phrase_tokens):
+            return True
+
+    return False
+
 
 def resolve_data_file_path(file_name: str) -> str:
     if os.path.exists(file_name):
@@ -255,21 +275,6 @@ def resolve_data_file_path(file_name: str) -> str:
         return candidate
 
     return file_name
-    if f" {phrase} " in f" {text} ":
-        return True
-
-    compact_text = re.sub(r"[^a-z0-9]", "", text)
-    compact_phrase = re.sub(r"[^a-z0-9]", "", phrase)
-    if len(compact_phrase) >= 6 and compact_phrase in compact_text:
-        return True
-
-    phrase_tokens = [t for t in phrase.split() if t]
-    if len(phrase_tokens) >= 2:
-        text_tokens = set(text.split())
-        if all(token in text_tokens for token in phrase_tokens):
-            return True
-
-    return False
 
 
 def is_valid_brand_phrase(value: str) -> bool:
@@ -935,19 +940,13 @@ def append_case12_chain_vho_note(df, input_cols, match_reasons):
     case12_chain_branch_vho_notes = []
 
     for index in range(total_rows):
-        if bool(df.at[index, "matched trường hợp 1-2"]):
-            if match_reasons[index] == "master_child_precheck_match":
-                case12_chain_branch_vho_notes.append("Trường hợp 1-2: tên và địa chỉ giống nhau")
-            else:
-                if bool(df.at[index, "check_url_pass"]):
-                    case12_chain_branch_vho_notes.append("Tên child nằm trên URL link child")
-                else:
-                    case12_chain_branch_vho_notes.append("")
-            continue
+        row_notes = []
+
+        if bool(df.at[index, "matched trường hợp 1-2"]) and match_reasons[index] == "master_child_precheck_match":
+            row_notes.append("Trường hợp 1-2: tên và địa chỉ giống nhau")
 
         if bool(df.at[index, "check_url_pass"]):
-            case12_chain_branch_vho_notes.append("Tên child nằm trên URL link child")
-            continue
+            row_notes.append("Tên child nằm trên URL link child")
 
         master_name = normalize_text(df.at[index, input_cols["master_name_col"]])
         child_name = normalize_text(df.at[index, input_cols["child_name_col"]])
@@ -959,7 +958,10 @@ def append_case12_chain_vho_note(df, input_cols, match_reasons):
             chain_alias_groups,
             vho_terms,
         )
-        case12_chain_branch_vho_notes.append(chain_branch_note)
+        if chain_branch_note:
+            row_notes.append(chain_branch_note)
+
+        case12_chain_branch_vho_notes.append(" | ".join(row_notes))
 
     df["Case1-2_chain_branch_vho_CheckChildVoiURLCuaChild_note"] = case12_chain_branch_vho_notes
 
