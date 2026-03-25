@@ -405,6 +405,28 @@ def load_vho_terms(vho_file_path: str):
     return sorted(terms, key=len, reverse=True)
 
 
+def load_unit_keywords(keyword_file_path: str):
+    keyword_file_path = resolve_data_file_path(keyword_file_path)
+    if not os.path.exists(keyword_file_path):
+        return []
+
+    df_kw = pd.read_excel(keyword_file_path)
+    if len(df_kw.columns) < 1:
+        return []
+
+    first_col = df_kw.columns[0]
+    terms = []
+    seen = set()
+    for value in df_kw[first_col].tolist():
+        term = normalize_text(value)
+        if not term or term in seen:
+            continue
+        seen.add(term)
+        terms.append(term)
+
+    return sorted(terms, key=len, reverse=True)
+
+
 def highlight_column_yellow(excel_path: str, column_name: str):
     wb = load_workbook(excel_path)
     ws = wb.active
@@ -937,6 +959,7 @@ def append_case12_chain_vho_note(df, input_cols, match_reasons):
     total_rows = len(df)
     chain_list, chain_subbrand_pairs, chain_alias_groups = load_chain_subbrand_data("DanhSachChainBranch.xlsx")
     vho_terms = load_vho_terms("DanhSachVHO.xlsx")
+    unit_keywords = load_unit_keywords("DanhSachKeywordUnit.xlsx")
     case12_chain_branch_vho_notes = []
 
     for index in range(total_rows):
@@ -960,6 +983,13 @@ def append_case12_chain_vho_note(df, input_cols, match_reasons):
         )
         if chain_branch_note:
             row_notes.append(chain_branch_note)
+
+        master_has_unit = any(text_contains_phrase(master_name, kw) for kw in unit_keywords)
+        child_has_unit = any(text_contains_phrase(child_name, kw) for kw in unit_keywords)
+        if master_has_unit and not child_has_unit:
+            row_notes.append("Subunit")
+        else:
+            row_notes.append("Unit")
 
         case12_chain_branch_vho_notes.append(" | ".join(row_notes))
 
